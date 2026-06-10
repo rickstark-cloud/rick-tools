@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Ai Projects",
+  "schemaVersion": 1,
+  "description": "Living tracker for Rick's AI projects — add, edit, filter, and prioritize projects. Data persists in localStorage across sessions."
+}
+</script>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Projects</title>
+<style>
+  :root { color-scheme: light; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #f7f7f5;
+    color: #1a1a1a;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 10px;
+    margin-bottom: 24px;
+  }
+
+  .header-left {}
+
+  .firm-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 2px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .header-meta {
+    font-size: 11px;
+    color: #888;
+    text-align: right;
+  }
+
+  /* Summary bar */
+  .summary-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px 18px;
+    min-width: 90px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  .stat.active .stat-value { color: #1a7f37; }
+  .stat.paused .stat-value { color: #b07d2e; }
+  .stat.done .stat-value { color: #666; }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .filter-btn {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    background: #fff;
+    cursor: pointer;
+    color: #555;
+    transition: all 0.15s;
+  }
+
+  .filter-btn.active {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+
+  .search-input {
+    margin-left: auto;
+    padding: 5px 12px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 12px;
+    outline: none;
+    width: 180px;
+    background: #fff;
+  }
+
+  .search-input:focus { border-color: #1a1a1a; }
+
+  /* Table */
+  .project-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+
+  .project-table thead {
+    background: #1a1a1a;
+    color: #fff;
+  }
+
+  .project-table th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .project-table th:hover { background: #333; }
+
+  .project-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+  }
+
+  .project-table tr:last-child td { border-bottom: none; }
+  .project-table tr:hover td { background: #fafaf8; }
+
+  .project-name {
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .project-desc {
+    font-size: 12px;
+    color: #666;
+    margin-top: 2px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .badge-active   { background: #d4edda; color: #1a7f37; }
+  .badge-paused   { background: #fff3cd; color: #b07d2e; }
+  .badge-done     { background: #e2e3e5; color: #555; }
+  .badge-idea     { background: #cce5ff; color: #004085; }
+
+  .tag {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #f0f0ec;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 10px;
+    color: #555;
+    margin: 1px 2px 1px 0;
+  }
+
+  .priority-high   { color: #c0392b; font-weight: 700; }
+  .priority-medium { color: #e67e22; font-weight: 600; }
+  .priority-low    { color: #7f8c8d; }
+
+  /* Add / Edit form */
+  .add-btn {
+    margin-top: 18px;
+    padding: 8px 18px;
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .add-btn:hover { background: #333; }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: #fff;
+    border-radius: 6px;
+    width: 480px;
+    max-width: 95vw;
+    padding: 28px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    position: relative;
+  }
+
+  .modal h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+  }
+
+  .form-row { margin-bottom: 14px; }
+
+  .form-row label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 5px;
+  }
+
+  .form-row input,
+  .form-row select,
+  .form-row textarea {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .form-row input:focus,
+  .form-row select:focus,
+  .form-row textarea:focus { border-color: #1a1a1a; }
+
+  .form-row textarea { height: 70px; resize: vertical; }
+
+  .form-actions { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+
+  .btn-save {
+    padding: 8px 20px;
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .btn-cancel {
+    padding: 8px 16px;
+    background: #fff;
+    color: #555;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .btn-delete {
+    padding: 8px 14px;
+    background: #fff;
+    color: #c0392b;
+    border: 1px solid #e0b0b0;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: auto;
+  }
+
+  .edit-icon {
+    cursor: pointer;
+    color: #aaa;
+    font-size: 14px;
+    margin-left: 6px;
+  }
+
+  .edit-icon:hover { color: #1a1a1a; }
+
+  .empty-state {
+    text-align: center;
+    color: #aaa;
+    padding: 40px;
+    font-size: 13px;
+  }
+
+  footer {
+    margin-top: 28px;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 10px;
+    font-size: 10px;
+    color: #bbb;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="firm-label">Rick Stark</div>
+    <h1>AI Projects</h1>
+  </div>
+  <div class="header-meta">
+    <div id="last-updated"></div>
+    <div>Living Document</div>
+  </div>
+</header>
+
+<div class="summary-bar">
+  <div class="stat active">
+    <div class="stat-value" id="count-active">0</div>
+    <div class="stat-label">Active</div>
+  </div>
+  <div class="stat paused">
+    <div class="stat-value" id="count-paused">0</div>
+    <div class="stat-label">Paused</div>
+  </div>
+  <div class="stat" style="">
+    <div class="stat-value" id="count-idea">0</div>
+    <div class="stat-label">Ideas</div>
+  </div>
+  <div class="stat done">
+    <div class="stat-value" id="count-done">0</div>
+    <div class="stat-label">Done</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" id="count-total">0</div>
+    <div class="stat-label">Total</div>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+  <button class="filter-btn" data-filter="Active" onclick="setFilter('Active', this)">Active</button>
+  <button class="filter-btn" data-filter="Paused" onclick="setFilter('Paused', this)">Paused</button>
+  <button class="filter-btn" data-filter="Idea" onclick="setFilter('Idea', this)">Ideas</button>
+  <button class="filter-btn" data-filter="Done" onclick="setFilter('Done', this)">Done</button>
+  <input class="search-input" type="text" placeholder="Search projects…" oninput="renderTable()" id="search-box">
+</div>
+
+<table class="project-table">
+  <thead>
+    <tr>
+      <th onclick="sortBy('name')">Project ↕</th>
+      <th onclick="sortBy('status')">Status ↕</th>
+      <th onclick="sortBy('priority')">Priority ↕</th>
+      <th>Tags</th>
+      <th onclick="sortBy('updated')">Last Updated ↕</th>
+      <th style="width:32px;"></th>
+    </tr>
+  </thead>
+  <tbody id="table-body"></tbody>
+</table>
+
+<button class="add-btn" onclick="openModal()">+ Add Project</button>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2 id="modal-title">New Project</h2>
+    <div class="form-row">
+      <label>Project Name *</label>
+      <input type="text" id="f-name" placeholder="e.g. Claude Email Assistant">
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <textarea id="f-desc" placeholder="What is this project about?"></textarea>
+    </div>
+    <div class="form-row" style="display:flex;gap:12px;">
+      <div style="flex:1;">
+        <label>Status</label>
+        <select id="f-status">
+          <option>Active</option>
+          <option>Paused</option>
+          <option>Idea</option>
+          <option>Done</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <label>Priority</label>
+        <select id="f-priority">
+          <option>High</option>
+          <option>Medium</option>
+          <option>Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Tags (comma-separated)</label>
+      <input type="text" id="f-tags" placeholder="e.g. automation, llm, productivity">
+    </div>
+    <div class="form-row">
+      <label>Notes</label>
+      <textarea id="f-notes" placeholder="Links, next steps, ideas…"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn-delete" id="btn-delete" onclick="deleteProject()" style="display:none;">Delete</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>AI Projects Tracker</span>
+  <span id="footer-count"></span>
+</footer>
+
+<script>
+  const STORAGE_KEY = 'ai_projects_v1';
+
+  let projects = [];
+  let editingId = null;
+  let currentFilter = 'all';
+  let sortKey = 'updated';
+  let sortDir = -1;
+
+  const SEEDED = [
+    {
+      id: 'seed-cowork-local-setup-001',
+      name: 'Claude Cowork — Dedicated Local Files, Memory & Instructions',
+      desc: 'Configure Cowork projects with project-specific local files, persistent memory, and custom instructions so each project has its own context and behavior.',
+      status: 'Active',
+      priority: 'High',
+      tags: ['cowork', 'memory', 'setup', 'productivity'],
+      notes: 'Goal: each Cowork project feels "pre-loaded" — knows the context, follows custom rules, references local files without re-explanation every session.',
+      created: '2026-06-01T00:00:00.000Z',
+      updated: '2026-06-01T00:00:00.000Z'
+    },
+    {
+      id: 'seed-email-response-001',
+      name: 'AI Email Response — Full Send',
+      desc: 'AI that takes email writing all the way to "send it" — not just drafting, but owning the full loop through actual dispatch.',
+      status: 'Active',
+      priority: 'High',
+      tags: ['email', 'automation', 'agentic'],
+      notes: 'Goal: go beyond assisted writing to autonomous send. Key challenge: confidence threshold + human-in-the-loop override before send.',
+      created: '2026-06-01T00:00:00.000Z',
+      updated: '2026-06-01T00:00:00.000Z'
+    }
+  ];
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) projects = JSON.parse(raw);
+    } catch(e) { projects = []; }
+    // Merge seeded projects (won't duplicate if already present)
+    SEEDED.forEach(seed => {
+      if (!projects.find(p => p.id === seed.id)) projects.push(seed);
+    });
+    save();
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function setFilter(f, btn) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderTable();
+  }
+
+  function sortBy(key) {
+    if (sortKey === key) sortDir *= -1;
+    else { sortKey = key; sortDir = -1; }
+    renderTable();
+  }
+
+  function priorityOrder(p) {
+    return { High: 0, Medium: 1, Low: 2 }[p] ?? 3;
+  }
+
+  function statusOrder(s) {
+    return { Active: 0, Paused: 1, Idea: 2, Done: 3 }[s] ?? 4;
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('table-body');
+    const query = document.getElementById('search-box').value.toLowerCase();
+
+    let rows = projects.filter(p => {
+      if (currentFilter !== 'all' && p.status !== currentFilter) return false;
+      if (query) {
+        const haystack = [p.name, p.desc, p.notes, ...(p.tags || [])].join(' ').toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+
+    rows.sort((a, b) => {
+      let va, vb;
+      if (sortKey === 'name') { va = a.name.toLowerCase(); vb = b.name.toLowerCase(); }
+      else if (sortKey === 'status') { va = statusOrder(a.status); vb = statusOrder(b.status); }
+      else if (sortKey === 'priority') { va = priorityOrder(a.priority); vb = priorityOrder(b.priority); }
+      else { va = a.updated || ''; vb = b.updated || ''; }
+      if (va < vb) return -1 * sortDir;
+      if (va > vb) return 1 * sortDir;
+      return 0;
+    });
+
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No projects found. Add one to get started.</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(p => {
+      const badgeClass = { Active:'badge-active', Paused:'badge-paused', Done:'badge-done', Idea:'badge-idea' }[p.status] || '';
+      const prioClass = { High:'priority-high', Medium:'priority-medium', Low:'priority-low' }[p.priority] || '';
+      const tags = (p.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+      return `<tr>
+        <td>
+          <div class="project-name">${esc(p.name)}</div>
+          ${p.desc ? `<div class="project-desc">${esc(p.desc)}</div>` : ''}
+          ${p.notes ? `<div class="project-desc" style="color:#999;font-style:italic;margin-top:2px;">${esc(p.notes.slice(0,80))}${p.notes.length>80?'…':''}</div>` : ''}
+        </td>
+        <td><span class="badge ${badgeClass}">${p.status}</span></td>
+        <td><span class="${prioClass}">${p.priority}</span></td>
+        <td>${tags}</td>
+        <td style="white-space:nowrap;color:#888;font-size:12px;">${formatDate(p.updated)}</td>
+        <td><span class="edit-icon" onclick="openModal('${p.id}')">✎</span></td>
+      </tr>`;
+    }).join('');
+
+    updateCounts();
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function updateCounts() {
+    const counts = { Active: 0, Paused: 0, Idea: 0, Done: 0 };
+    projects.forEach(p => { if (counts[p.status] !== undefined) counts[p.status]++; });
+    document.getElementById('count-active').textContent = counts.Active;
+    document.getElementById('count-paused').textContent = counts.Paused;
+    document.getElementById('count-idea').textContent = counts.Idea;
+    document.getElementById('count-done').textContent = counts.Done;
+    document.getElementById('count-total').textContent = projects.length;
+    document.getElementById('footer-count').textContent = `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
+  }
+
+  function openModal(id) {
+    editingId = id || null;
+    const p = id ? projects.find(x => x.id === id) : null;
+    document.getElementById('modal-title').textContent = p ? 'Edit Project' : 'New Project';
+    document.getElementById('f-name').value = p ? p.name : '';
+    document.getElementById('f-desc').value = p ? (p.desc || '') : '';
+    document.getElementById('f-status').value = p ? p.status : 'Active';
+    document.getElementById('f-priority').value = p ? p.priority : 'Medium';
+    document.getElementById('f-tags').value = p ? (p.tags || []).join(', ') : '';
+    document.getElementById('f-notes').value = p ? (p.notes || '') : '';
+    document.getElementById('btn-delete').style.display = p ? 'block' : 'none';
+    document.getElementById('modal-overlay').classList.add('open');
+    setTimeout(() => document.getElementById('f-name').focus(), 50);
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    editingId = null;
+  }
+
+  function saveProject() {
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { document.getElementById('f-name').focus(); return; }
+    const tagsRaw = document.getElementById('f-tags').value;
+    const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+    const now = new Date().toISOString();
+
+    if (editingId) {
+      const idx = projects.findIndex(p => p.id === editingId);
+      if (idx >= 0) {
+        projects[idx] = { ...projects[idx],
+          name,
+          desc: document.getElementById('f-desc').value.trim(),
+          status: document.getElementById('f-status').value,
+          priority: document.getElementById('f-priority').value,
+          tags,
+          notes: document.getElementById('f-notes').value.trim(),
+          updated: now
+        };
+      }
+    } else {
+      projects.push({
+        id: uid(),
+        name,
+        desc: document.getElementById('f-desc').value.trim(),
+        status: document.getElementById('f-status').value,
+        priority: document.getElementById('f-priority').value,
+        tags,
+        notes: document.getElementById('f-notes').value.trim(),
+        created: now,
+        updated: now
+      });
+    }
+
+    save();
+    closeModal();
+    renderTable();
+    updateLastUpdated();
+  }
+
+  function deleteProject() {
+    if (!editingId) return;
+    if (!confirm('Delete this project?')) return;
+    projects = projects.filter(p => p.id !== editingId);
+    save();
+    closeModal();
+    renderTable();
+  }
+
+  function updateLastUpdated() {
+    document.getElementById('last-updated').textContent =
+      'Updated ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // Close modal on overlay click
+  document.getElementById('modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  // Init
+  load();
+  updateLastUpdated();
+  renderTable();
+</script>
+
+</body>
+</html>
